@@ -28,7 +28,7 @@ while (!feof($fd)) {
 
 	$region = $matches[1];
 
-	if (!$regions[$region]) {
+	if (!@$regions[$region]) {
 		$regions[$region] = [(double)$flds[$header['Longitude']], (double)$flds[$header['Latitude']], (double)$flds[$header['Longitude']], (double)$flds[$header['Latitude']]];
 	} else {
 		$regions[$region][0] = min($regions[$region][0], (double)$flds[$header['Longitude']]);
