@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "epsg": "^0.5.0",
+    "reproject": "^1.2.7",
+    "togpx": "^0.5.4"
+  }
+}
