@@ -12,9 +12,7 @@ $padding = 1;	// km
 $summitsfd = fopen("summits.geojson", "w");
 $inactivesummitsfd = fopen("summits_inactive.geojson", "w");
 $numsummits = 0;
-while (!feof($fd)) {
-	$flds = fgetcsv($fd);
-
+while ($flds = fgetcsv($fd)) {
 	$inactive = false;
 	if ($now < convertDate($flds[$header['ValidFrom']]) || $now > convertDate($flds[$header['ValidTo']])) {
 		//echo "summit " . $flds[$header['SummitCode']] . " currently invalid (" . $flds[$header['ValidFrom']] . " - " . $flds[$header['ValidTo']] . ")\n";
