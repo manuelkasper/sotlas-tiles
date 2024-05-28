@@ -2,9 +2,9 @@
 
 set -e
 
+cd /app/sotlas-tiles
 export $(grep -v '^#' .env | xargs)
 
-cd /app/sotlas-tiles
 rm -f summitslist.csv
 wget -q https://www.sotadata.org.uk/summitslist.csv
 php makegeojson.php
