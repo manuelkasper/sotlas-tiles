@@ -2,6 +2,10 @@
 
 One `.geojson` file per SOTA association, named with the association in lowercase (e.g. `w7w.geojson`). `maketiles.sh` builds vector tiles from every `*.geojson` in this directory.
 
+## Adding a new association
+
+Please create a .geojson file for the new association following the format specified below, and submit a pull request or email it to mk@neon1.net. Also specify the source and accuracy of the data (for the info popup dialog that appears when a user clicks the blue "i" button next to the activation zones layer checkbox in the map options). Thanks!
+
 ## Required format
 
 Each file must be a **single** JSON document (not NDJSON or concatenated objects) whose root is a `FeatureCollection`. Every feature is the activation zone of one summit:
