@@ -12,7 +12,7 @@ Requires boto3. Credentials (same names as sotlas-api):
   SPACES_ACCESS_KEY
   SPACES_SECRET_KEY
   SPACES_ENDPOINT   default https://fra1.digitaloceanspaces.com
-  SPACES_REGION     default: parsed from the endpoint, else fra1
+  SPACES_REGION     default fra1 (or parsed from the endpoint)
   SPACES_BUCKET     default sotlas-az
 
 Optional: a .env file in the current directory or the repo root is loaded
@@ -27,27 +27,30 @@ import json
 import os
 import sys
 import xml.etree.ElementTree as ET
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any
 
 from check_geojson import check, read_geojson_text
 
 GPX_NS = "http://www.topografix.com/GPX/1/1"
 GEOJSON_CONTENT_TYPE = "application/geo+json"
 GPX_CONTENT_TYPE = "application/gpx+xml"
-DEFAULT_ENDPOINT = "https://fra1.digitaloceanspaces.com"
+
+DEFAULT_REGION = "fra1"
+DEFAULT_ENDPOINT = f"https://{DEFAULT_REGION}.digitaloceanspaces.com"
 DEFAULT_BUCKET = "sotlas-az"
 DEFAULT_JOBS = 16
+PROGRESS_EVERY = 50
+ERROR_EXAMPLES = 8
 
 ET.register_namespace("", GPX_NS)
 
 
 def load_dotenv() -> None:
-    candidates = [
-        Path.cwd() / ".env",
-        Path(__file__).resolve().parent / ".env",
-        Path(__file__).resolve().parent.parent / ".env",
-    ]
+    here = Path(__file__).resolve().parent
+    candidates = [Path.cwd() / ".env", here / ".env", here.parent / ".env"]
     seen: set[Path] = set()
     for path in candidates:
         path = path.resolve()
@@ -59,11 +62,13 @@ def load_dotenv() -> None:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
-            key = key.strip()
-            value = value.strip()
-            if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-                value = value[1:-1]
-            os.environ.setdefault(key, value)
+            os.environ.setdefault(key.strip(), _unquote(value.strip()))
+
+
+def _unquote(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
 
 
 def normalize_endpoint(endpoint: str) -> str:
@@ -75,9 +80,11 @@ def normalize_endpoint(endpoint: str) -> str:
 
 def region_from_endpoint(endpoint: str) -> str:
     host = endpoint.split("://", 1)[-1].split("/", 1)[0]
-    # fra1.digitaloceanspaces.com -> fra1
-    first = host.split(".", 1)[0]
-    return first or "fra1"
+    if host.endswith(".digitaloceanspaces.com"):
+        region = host.split(".", 1)[0]
+        if region:
+            return region
+    return DEFAULT_REGION
 
 
 def summit_key_base(summit_code: str) -> str:
@@ -98,7 +105,7 @@ def _fmt_coord(value: float) -> str:
     return text
 
 
-def _iter_rings(geometry: dict):
+def _iter_rings(geometry: dict) -> Iterator[list]:
     gtype = geometry["type"]
     coords = geometry["coordinates"]
     if gtype == "Polygon":
@@ -111,12 +118,11 @@ def _iter_rings(geometry: dict):
 
 
 def feature_gpx_bytes(feature: dict) -> bytes:
-    props = feature.get("properties") or {}
-    code = str(props.get("summitCode", ""))
+    code = str((feature.get("properties") or {}).get("summitCode", ""))
 
     gpx = ET.Element(f"{{{GPX_NS}}}gpx", {"version": "1.1", "creator": "sotlas-tiles"})
     metadata = ET.SubElement(gpx, f"{{{GPX_NS}}}metadata")
-    ET.SubElement(metadata, f"{{{GPX_NS}}}name").text = "Activation zone for " + code
+    ET.SubElement(metadata, f"{{{GPX_NS}}}name").text = f"Activation zone for {code}"
 
     trk = ET.SubElement(gpx, f"{{{GPX_NS}}}trk")
     ET.SubElement(trk, f"{{{GPX_NS}}}name").text = code
@@ -125,17 +131,16 @@ def feature_gpx_bytes(feature: dict) -> bytes:
     for ring in _iter_rings(feature["geometry"]):
         seg = ET.SubElement(trk, f"{{{GPX_NS}}}trkseg")
         for point in ring:
-            lon, lat = point[0], point[1]
             ET.SubElement(
                 seg,
                 f"{{{GPX_NS}}}trkpt",
-                {"lat": _fmt_coord(lat), "lon": _fmt_coord(lon)},
+                {"lat": _fmt_coord(point[1]), "lon": _fmt_coord(point[0])},
             )
 
     return ET.tostring(gpx, encoding="utf-8", xml_declaration=True)
 
 
-def make_s3_client(endpoint: str, region: str, access_key: str, secret_key: str, jobs: int):
+def make_s3_client(endpoint: str, region: str, access_key: str, secret_key: str, jobs: int) -> Any:
     import boto3
     from botocore.config import Config
 
@@ -148,12 +153,12 @@ def make_s3_client(endpoint: str, region: str, access_key: str, secret_key: str,
         config=Config(
             s3={"addressing_style": "virtual"},
             retries={"max_attempts": 8, "mode": "standard"},
-            max_pool_connections=max(jobs, 4) + 4,
+            max_pool_connections=max(jobs, 10),
         ),
     )
 
 
-def put_object(client, bucket: str, key: str, body: bytes, content_type: str) -> None:
+def put_object(client: Any, bucket: str, key: str, body: bytes, content_type: str) -> None:
     filename = key.rsplit("/", 1)[-1]
     client.put_object(
         Bucket=bucket,
@@ -166,24 +171,26 @@ def put_object(client, bucket: str, key: str, body: bytes, content_type: str) ->
     )
 
 
-def process_feature(client, bucket: str, feature: dict) -> str:
-    code = feature["properties"]["summitCode"]
-    base = summit_key_base(code)
+def process_feature(client: Any, bucket: str, feature: dict) -> None:
+    base = summit_key_base(feature["properties"]["summitCode"])
     put_object(client, bucket, f"{base}.geojson", feature_geojson_bytes(feature), GEOJSON_CONTENT_TYPE)
     put_object(client, bucket, f"{base}.gpx", feature_gpx_bytes(feature), GPX_CONTENT_TYPE)
-    return code
 
 
-def print_check_failure(path: str, issues: list[str]) -> None:
+def _print_fail(path: str, details: list[str]) -> None:
     print(f"FAIL {path}")
-    for issue in issues:
-        print(f"  - {issue}")
+    for detail in details:
+        print(f"  - {detail}")
 
 
-def process_file(path: str, client, bucket: str, jobs: int, dry_run: bool) -> int:
+def _summit_label(n: int) -> str:
+    return f"{n} summit" if n == 1 else f"{n} summits"
+
+
+def process_file(path: str, client: Any | None, bucket: str, jobs: int, dry_run: bool) -> int:
     issues = check(path)
     if issues:
-        print_check_failure(path, issues)
+        _print_fail(path, issues)
         return 1
 
     data = json.loads(read_geojson_text(path))
@@ -195,7 +202,7 @@ def process_file(path: str, client, bucket: str, jobs: int, dry_run: bool) -> in
         for feature in features:
             feature_geojson_bytes(feature)
             feature_gpx_bytes(feature)
-        print(f"OK   {path} ({n} summit{'s' if n != 1 else ''})")
+        print(f"OK   {path} ({_summit_label(n)})")
         print(f"  dry-run: would upload {n} .geojson + {n} .gpx to s3://{bucket}/")
         if example:
             print(f"  e.g. {example}.geojson, {example}.gpx")
@@ -204,27 +211,25 @@ def process_file(path: str, client, bucket: str, jobs: int, dry_run: bool) -> in
     errors: list[str] = []
     done = 0
     with ThreadPoolExecutor(max_workers=jobs) as pool:
-        futures = {pool.submit(process_feature, client, bucket, feat): feat for feat in features}
+        futures = {
+            pool.submit(process_feature, client, bucket, feat): feat["properties"]["summitCode"]
+            for feat in features
+        }
         for fut in as_completed(futures):
             try:
                 fut.result()
             except Exception as e:
-                feat = futures[fut]
-                code = (feat.get("properties") or {}).get("summitCode", "?")
-                errors.append(f"{code}: {e}")
+                errors.append(f"{futures[fut]}: {e}")
             done += 1
-            if done % 50 == 0 or done == n:
+            if done % PROGRESS_EVERY == 0 or done == n:
                 print(f"  {path}: {done}/{n}", flush=True)
 
     if errors:
-        print(f"FAIL {path}: {len(errors)} upload error(s)")
-        for err in errors[:8]:
-            print(f"  - {err}")
-        if len(errors) > 8:
-            print(f"  - ({len(errors) - 8} more)")
+        extra = [f"({len(errors) - ERROR_EXAMPLES} more)"] if len(errors) > ERROR_EXAMPLES else []
+        _print_fail(path, [f"{len(errors)} upload error(s)", *errors[:ERROR_EXAMPLES], *extra])
         return 1
 
-    print(f"OK   {path} ({n} summit{'s' if n != 1 else ''} uploaded to s3://{bucket}/)")
+    print(f"OK   {path} ({_summit_label(n)} uploaded to s3://{bucket}/)")
     if example:
         print(f"  e.g. {example}.geojson, {example}.gpx")
     return 0
@@ -248,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
         metavar="N",
         help=f"parallel uploads (default {DEFAULT_JOBS})",
     )
-    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(argv)
 
     if args.jobs < 1:
         print("error: --jobs must be >= 1", file=sys.stderr)
