@@ -1,2 +1,4 @@
 .env
 *.mbtiles
+__pycache__
+node_modules
