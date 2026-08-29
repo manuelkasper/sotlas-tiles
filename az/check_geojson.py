@@ -2,6 +2,7 @@
 """Check that a GeoJSON file matches the AZ FeatureCollection convention.
 
 A compliant file is a single JSON document whose root is a FeatureCollection.
+Gzip-compressed files (.geojson.gz, or any file with gzip magic bytes) are accepted.
 Every feature must be a Polygon (or MultiPolygon, when an AZ is disjoint)
 and must have a SOTA reference in properties.summitCode (e.g. KH8/MI-002).
 Vertex coordinates must be 2D [lon, lat] with at most 6 decimal digits.
@@ -9,6 +10,7 @@ Vertex coordinates must be 2D [lon, lat] with at most 6 decimal digits.
 
 from __future__ import annotations
 
+import gzip
 import json
 import re
 import sys
@@ -20,10 +22,20 @@ MAX_DECIMAL_DIGITS = 6
 PRECISION_TOLERANCE = 1e-9
 
 
+def read_geojson_text(path: str) -> str:
+    """Read a GeoJSON file, transparently decompressing gzip (.gz or magic bytes)."""
+    with open(path, "rb") as f:
+        header = f.read(2)
+        f.seek(0)
+        if header == b"\x1f\x8b":
+            with gzip.GzipFile(fileobj=f, mode="rb") as gz:
+                return gz.read().decode("utf-8")
+        return f.read().decode("utf-8")
+
+
 def check(path: str) -> list[str]:
     issues: list[str] = []
-    with open(path, encoding="utf-8") as f:
-        raw = f.read()
+    raw = read_geojson_text(path)
 
     decoder = json.JSONDecoder()
     try:

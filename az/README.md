@@ -1,10 +1,10 @@
 # Activation zones
 
-One `.geojson` file per SOTA association, named with the association in lowercase (e.g. `w7w.geojson`). `maketiles.sh` builds vector tiles from every `*.geojson` in this directory.
+One gzip-compressed `.geojson.gz` file per SOTA association, named with the association in lowercase (e.g. `w7w.geojson.gz`). `maketiles.sh` builds vector tiles from every `*.geojson.gz` in this directory.
 
 ## Adding a new association
 
-Please create a .geojson file for the new association following the format specified below, and submit a pull request or email it to mk@neon1.net. Also specify the source and accuracy of the data (for the info popup dialog that appears when a user clicks the blue "i" button next to the activation zones layer checkbox in the map options). Thanks!
+Please create a `.geojson` file for the new association following the format specified below, gzip it (`gzip -n -9 w7w.geojson`), and submit a pull request or email it to mk@neon1.net. Also specify the source and accuracy of the data (for the info popup dialog that appears when a user clicks the blue "i" button next to the activation zones layer checkbox in the map options). Thanks!
 
 ## Required format
 
@@ -34,8 +34,8 @@ Each file must be a **single** JSON document (not NDJSON or concatenated objects
 ## Checking a file
 
 ```sh
-python3 check_geojson.py w7w.geojson
-python3 check_geojson.py *.geojson
+python3 check_geojson.py w7w.geojson.gz
+python3 check_geojson.py *.geojson.gz
 ```
 
 The script prints `OK` or `FAIL` for each file and exits with status 1 if any file is non-compliant.
