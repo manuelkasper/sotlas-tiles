@@ -3,8 +3,9 @@
 
 A compliant file is a single JSON document whose root is a FeatureCollection.
 Gzip-compressed files (.geojson.gz, or any file with gzip magic bytes) are accepted.
-Every feature must be a Polygon (or MultiPolygon, when an AZ is disjoint)
-and must have a SOTA reference in properties.summitCode (e.g. KH8/MI-002).
+Every feature must be a Polygon (not MultiPolygon: SOTA summit activation
+zones are contiguous by definition) and must have a SOTA reference in
+properties.summitCode (e.g. KH8/MI-002).
 Vertex coordinates must be 2D [lon, lat] with at most 6 decimal digits.
 """
 
@@ -16,7 +17,6 @@ import re
 import sys
 
 SOTA_REF = re.compile(r"^[A-Z0-9]+/[A-Z]{2}-\d{3}$")
-POLYGON_TYPES = {"Polygon", "MultiPolygon"}
 MAX_DECIMAL_DIGITS = 6
 # Floats that match 6 d.p. after JSON parse may still differ by a few ULPs.
 PRECISION_TOLERANCE = 1e-9
@@ -104,7 +104,7 @@ def check(path: str) -> list[str]:
             note("missing geometry", prefix)
             continue
         gtype = geom.get("type")
-        if gtype not in POLYGON_TYPES:
+        if gtype != "Polygon":
             bad_geom += 1
             note("bad geometry", f"{prefix} type={gtype!r}")
             continue
@@ -125,7 +125,7 @@ def check(path: str) -> list[str]:
     count_issue(missing_props, "feature(s) missing a properties object")
     count_issue(bad_code, "feature(s) missing a valid properties.summitCode")
     count_issue(missing_geom, "feature(s) missing geometry")
-    count_issue(bad_geom, "feature(s) whose geometry is not Polygon or MultiPolygon")
+    count_issue(bad_geom, "feature(s) whose geometry is not a Polygon")
     count_issue(not_2d, "feature(s) with vertices that are not 2D [lon, lat]")
     count_issue(over_precision, "feature(s) with coordinates of more than 6 decimal digits")
     for example in examples:
