@@ -4,6 +4,8 @@ One gzip-compressed `.geojson.gz` file per SOTA association, named with the asso
 
 ## Source data
 
+* **DL, DM**  
+  Höhendaten Deutschland DGM1
 * **ER**  
   1 arc-second SRTM data
 * **F, FL**  
@@ -16,8 +18,12 @@ One gzip-compressed `.geojson.gz` file per SOTA association, named with the asso
   Welsh Government 32-bit DTM Cloud Optimized GeoTIFFs
 * **HB, HB0**  
   swissALTI3D data from swisstopo (spatial resolution 0.5 m, accuracy ± 0.3 – 3 m (1σ) depending on the region)
+* **JA**  
+  GSI DEM1A elevation tiles
 * **KH0, KH2, KH6, KH8, KLA, KP4, W**  
   U.S. Geological Survey 3D Elevation Program (3DEP)
+* **LA**  
+  Kartverket Nasjonal detaljert høydemodell (NDH) DTM, native 1 m grid
 * **OE**  
   BEV ALS DTM data (spatial resolution 1 m, accuracy generally ± 0.5 m, may vary in high altitude)
 * **OK**  
@@ -26,6 +32,8 @@ One gzip-compressed `.geojson.gz` file per SOTA association, named with the asso
   LiDAR DTM data (spatial resolution 20 m)
 * **SP**  
   1 m resolution Digital Terrain Model (NMT) from the Head Office of Geodesy and Cartography (GUGiK), derived from LiDAR surveys (EVRF2007 vertical reference)
+* **VE, VO, VY2**  
+  NRCan HRDEM Mosaic 1 m DTM
 * **W7W**  
   Washington State’s Department of Natural Resources public LiDAR portal
 * **ZL**  
