@@ -39,6 +39,29 @@ One gzip-compressed `.geojson.gz` file per SOTA association, named with the asso
 * **ZL**  
   Based on LiDAR data (generalised to a 4m x 4m grid) where available, or NZSoSDEM 15m contour-derived DEM grid otherwise.
 
+## Using the data in other applications
+
+You are welcome to use the activation zone polygons from this repository in your application, provided that it is freely available to users (not for commercial use).
+
+Individual (per summit) activation zone polygons are hosted at the following URLs in GeoJSON and GPX formats, backed by a CDN:
+
+https://az.sotl.as/{summitCode}.{gpx|geojson}
+
+The dash (-) in the summit code is replaced by a slash (/), e.g.
+
+https://az.sotl.as/HB/VS/006.geojson
+or
+https://az.sotl.as/HB/VS/006.gpx
+
+You can load these files directly in your application as long as you follow these rules:
+
+* Load individual summits only (e.g. on a summit details screen); refrain from bulk-loading AZ polygons for an entire region or association at once.
+* For native applications, please make sure your User-Agent header allows identification of the application in case of problems.
+* Attribution in a suitable place is appreciated.
+* Not for commercial use.
+
+If you cannot follow these rules, then please host the data yourself.
+
 ## Adding a new association
 
 Please create a `.geojson` file for the new association following the format specified below, gzip it (`gzip -n -9 w7w.geojson`), and submit a pull request or email it to mk@neon1.net. Also specify the source and accuracy of the data (for the info popup dialog that appears when a user clicks the blue "i" button next to the activation zones layer checkbox in the map options). Thanks!
